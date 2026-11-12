@@ -27,7 +27,7 @@ public class McpClient01SyncStdio {
                             LoggerFactory.getLogger(McpClient01SyncStdio.class);
    // nome e caminho para o servidor MCP
    private static final String SERVER_PATH =
-                                         "../../server/mcp_server01_server.jar";
+                                        findServerPath();
    // objeto cliente para comunicação com o servidor
    private final McpSyncClient client;
 
@@ -40,6 +40,15 @@ public class McpClient01SyncStdio {
                notification.level(), 
                notification.data());
    }
+
+   private static String findServerPath() {
+	   String configurado = System.getProperty("mcp.server.jar");
+	   if(configurado != null)
+		   return configurado;
+	   File daRaiz = new File("server/mcp_server01_server.jar");
+	   if(daRaiz.isFile())
+		   return daRaiz.getPath();
+	   return "../../server/mcp_server01_server.jar";}
 
    private McpSyncClient createClient() {
       // identifica o servidor a ser chamado/executado
