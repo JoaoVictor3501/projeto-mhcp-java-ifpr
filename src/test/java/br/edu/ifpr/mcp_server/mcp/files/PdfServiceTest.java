@@ -27,7 +27,7 @@ public class PdfServiceTest {
 	
 	@Test
 	void contarPaginasDeUmPdf(@TempDir Path pasta) {
-		criarPdf(pasta.resolve("tes.pdf"), 3);
+		criarPdf(pasta.resolve("tres.pdf"), 3);
 		
 		PdfService service = new PdfService(new SafePath(pasta));
 		
