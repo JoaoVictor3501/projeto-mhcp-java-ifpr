@@ -21,6 +21,7 @@
       <!-- dependencies -->
       <slf4j-api.version>2.0.20</slf4j-api.version>
       <logback-classic.version>1.6.3</logback-classic.version>
+      <pdfbox.version>3.0.5</pdfbox.version>
 
       <!-- build > pluginManagement > plugins -->
       <maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
@@ -84,6 +85,11 @@
          <groupId>org.junit.jupiter</groupId>
          <artifactId>junit-jupiter</artifactId>
          <scope>test</scope>
+      </dependency>
+            <dependency>
+         <groupId>org.apache.pdfbox</groupId>
+         <artifactId>pdfbox</artifactId>
+         <version>${pdfbox.version}</version>
       </dependency>
    </dependencies>
 
