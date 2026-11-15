@@ -14,7 +14,7 @@ public class PdfService {
 		this.safePath = safePath;
 	}
 
-	public Object countPages(String caminho) {
+	public int countPages(String caminho) {
 		Path arquivo = safePath.resolve(caminho);
 		try(PDDocument doc = Loader.loadPDF(arquivo.toFile())){
 			return doc.getNumberOfPages();

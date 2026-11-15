@@ -17,8 +17,8 @@ public class PdfServiceTest {
 		try (PDDocument doc = new PDDocument()){
 			for (int i = 0; i < paginas; i++) {
 				doc.addPage(new PDPage());
-			doc.save(arquivo.toFile());
 			}
+			doc.save(arquivo.toFile());
 		}catch (IOException error){
 			String caminho = null;
 			throw new UncheckedIOException("Não foi possível ler o PDF: " + caminho, error);

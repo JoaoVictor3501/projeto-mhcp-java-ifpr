@@ -8,9 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import br.edu.ifpr.mcp_server.mcp.files.GlobService;
+import br.edu.ifpr.mcp_server.mcp.files.PdfService;
 import br.edu.ifpr.mcp_server.mcp.files.SafePath;
 import br.edu.ifpr.mcp_server.mcp.tools.GlobSearchTool;
 import br.edu.ifpr.mcp_server.mcp.tools.SimpleReportTool;
+import br.edu.ifpr.mcp_server.mcp.tools.PdfPageCountTool;
 import br.edu.ifpr.mcp_server.mcp.utils.McpToolDefinition;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
@@ -35,9 +37,11 @@ public class McpServer01SyncStdio {
   
       Path root = Path.of(System.getenv().getOrDefault("GLOB_ROOT", "repositorio"));
       GlobService globService = new GlobService(new SafePath(root));
+      PdfService  pdfService = new PdfService(new SafePath(root));
 
       List<McpToolDefinition> tools= List.of(new SimpleReportTool(),
-                                              new GlobSearchTool(globService));
+                                              new GlobSearchTool(globService),
+                                              new PdfPageCountTool(pdfService));
       for (McpToolDefinition tool : tools)
           if (tool != null)
              tool.register(mcp);
