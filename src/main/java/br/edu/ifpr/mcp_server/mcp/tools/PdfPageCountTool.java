@@ -58,7 +58,8 @@ public class PdfPageCountTool implements McpToolDefinition {
 		 try {
 			 String path = (String) request.arguments().get("path");
 			 int paginas = pdfService.countPages(path);
-			 String texto = path + ": " + paginas + "página(s)";
+			 String texto = path + ": " + paginas + " página(s)";
+			 
 			return CallToolResult.builder()
 					.content(List.of(TextContent.builder(texto).build()))
 					.build();

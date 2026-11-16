@@ -21,6 +21,7 @@ import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.ListToolsResult;
+import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -37,12 +38,14 @@ class McpServer01IT {
       // antes que a classe de testes seja carregada, este método providencia
       // alguma inicialização ou alocação de recursos, neste caso, o servidor
       // MCP é executado e o cliente se conecta a ele
+	  String rootPath = new File("repositorio").getAbsolutePath();
       File serverJar = new File(SERVER_PATH);
       assertTrue(serverJar.isFile(),"JAR do servidor não encontrado: " +
                                     serverJar.getAbsolutePath());
 
       String           jarPath = serverJar.getAbsolutePath();
       ServerParameters params  = ServerParameters.builder("java")
+    		  									.env(Map.of("GLOB_ROOT", rootPath))
     			                                 .args("-jar",jarPath)
     			                                 .build();
       JacksonMcpJsonMapper jsonMapper = new JacksonMcpJsonMapper(
@@ -116,5 +119,96 @@ class McpServer01IT {
       assertNotNull(result.content(),"O resultado deveria possuir 'content'.");
       assertFalse(result.content().isEmpty(),"O resultado deveria possuir " +
                                              "pelo menos um 'content'." );
+   }
+   
+   @Test
+   void deveContarPaginas() {
+      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      CallToolRequest request = CallToolRequest.builder("pdf_page_count")
+                                               .arguments(Map.of("path","manual-do-mcp.pdf"))
+                                               .build();
+      // 2) RESPONDER
+      CallToolResult  result  = client.callTool(request);
+
+      // 3) CONFERIR
+      assertFalse(result.isError(), "Não deveria ser erro.");
+      String texto = ((TextContent) result.content().get(0)).text();
+      assertTrue(texto.contains("3 página"), "Esperava 3 páginas, mas veio: " + texto);
+   }
+   
+   @Test
+   void deveDisponibilizarGlobSearch() {
+	   ListToolsResult result = client.listTools();
+	   Tool            tool   = result.tools()
+	                                  .stream()
+	                                  .filter(item -> "glob_search".equals(item.name()))
+	                                  .findFirst()
+	                                  .orElse(null);
+
+	   assertNotNull(tool, "A ferramenta glob_search não foi encontrada.");
+	   assertNotNull(tool.description(), "A ferramenta deveria possuir descrição.");
+	   assertNotNull(tool.inputSchema(), "A ferramenta deveria possuir 'inputSchema'.");
+   }
+   
+   
+   @Test
+   void deveAcharPdfsNaRaiz() {
+      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      CallToolRequest request = CallToolRequest.builder("glob_search")
+                                               .arguments(Map.of("pattern","*.pdf"))
+                                               .build();
+      // 2) RESPONDER
+      CallToolResult  result  = client.callTool(request);
+
+      // 3) CONFERIR
+      assertFalse(result.isError(), "Não deveria ser erro.");
+      String texto = ((TextContent) result.content().get(0)).text();
+      assertTrue(texto.contains("manual-do-mcp.pdf"), "Esperava o manual, mas veio: " + texto);
+      assertTrue(texto.contains("guia-rapido-java.pdf"), "Esperava encontrar o arquivo guia-rapido-java.pdf, mas veio: " + texto);
+      assertTrue(texto.contains("relatorio-de-estudos.pdf"), "Esperava encontrar o arquivo relatorio-de-estudos.pdf, mas encontrei: " + texto);
+   }
+   
+   @Test
+   void deveDisponibilizarPdfPageCount() {
+      ListToolsResult result = client.listTools();
+      Tool            tool   = result.tools()
+                                     .stream()
+                                     .filter(item -> "pdf_page_count".equals(item.name()))
+                                     .findFirst()
+                                     .orElse(null);
+
+      assertNotNull(tool, "A ferramenta pdf_page_count não foi encontrada.");
+      assertNotNull(tool.description(), "A ferramenta deveria possuir descrição.");
+      assertNotNull(tool.inputSchema(), "A ferramenta deveria possuir 'inputSchema'.");
+   }
+   
+   @Test
+   void deveRetornarErroParaArquivoInexistente() {
+      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      CallToolRequest request = CallToolRequest.builder("pdf_page_count")
+                                               .arguments(Map.of("path","nao-existe.pdf"))
+                                               .build();
+      // 2) RESPONDER
+      CallToolResult  result  = client.callTool(request);
+
+      // 3) CONFERIR
+      assertTrue(result.isError(), "Arquivo que não existe deveria retornar erro.");
+      String texto = ((TextContent) result.content().get(0)).text();
+      assertTrue(texto.contains("Erro"), "Esperava mensagem de erro, mas veio: " + texto);
+   }
+   
+   @Test
+   void deveRetornarErroForaDaRaiz() {
+      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      CallToolRequest request = CallToolRequest.builder("pdf_page_count")
+                                               .arguments(Map.of("path","../fora.pdf"))
+                                               .build();
+      // 2) RESPONDER
+      CallToolResult  result  = client.callTool(request);
+
+      // 3) CONFERIR
+      assertTrue(result.isError(), "Caminho fora da raiz deveria retornar erro.");
+      String texto = ((TextContent) result.content().get(0)).text();
+      assertTrue(texto.contains("Erro"), "Esperava mensagem de erro, mas veio: " + texto);
    }
 }
