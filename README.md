@@ -1,131 +1,341 @@
-<!--
-Markdown Cheatsheet
-https://github.com/adam-p/markdown-here/wiki/markdown-cheatsheet
--->
+# 🔎 MCP Globbing: servidor MCP em Java para buscar arquivos e contar páginas de PDF
 
-## 🚀 MCP Server: Exemplo 🚀
+Trabalho final da disciplina **Serviços Web** (IFPR). Projeto Maven único com um **servidor** e um **cliente** [MCP](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro) (*Model Context Protocol*) escritos em Java com o [MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk), sem Spring e sem Lombok. A comunicação entre cliente e servidor usa o transporte **STDIO**.
 
-Este projeto demonstra o uso do Protocolo de Contexto do Modelo ([MCP](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro) - Model Context Protocol) usando o [MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk).
+O servidor trabalha sobre uma **pasta raiz** (por padrão, `repositorio/`) e oferece ferramentas (*tools*) para que uma IA possa:
 
-Com este SDK deve-ser programar todos os detalhes, tanto do servidor quanto do cliente.
+- **encontrar arquivos** por padrão *glob* (`*.pdf`, `**/*.txt`, ...);
+- **contar as páginas** de arquivos PDF.
 
-A camada de transporte administra a comunicação entre cliente e servidor, entre outras tarefas, podendo ser STDIO ou *Streamable* HTTP.
+> Exemplo de uso com a IA: *"Quantas páginas tem cada PDF do repositório?"*. A IA chama `glob_search` para descobrir os PDFs e depois `pdf_page_count` para cada um.
 
-Neste caso, é demonstrado o uso de STDIO como modelo de comunicação entre o cliente e o servidor.
 
-O MCP define três primitivas básicas: *tools* (ferramentas), *resources* (recursos) e *prompts*.
 
-Nosso projeto exemplifica o uso de *tools*.
+---
 
-### 📌 Executar a aplicação 📌
-Este é um projeto único para duas aplicações: servidor e cliente. O servidor é executado a partir da classe `br.edu.ifpr.mcp_server.main.McpServer01SyncStdio`. Já o cliente é executado a partir da classe `br.edu.ifpr.mcp_server.main.McpClient01SyncStdio`.
+## Sumário
 
-Inicialmente, é preciso gerar a aplicação servidor e, em seguida, executar o cliente, tanto no Eclispe IDE quanto em linha de comando (CLI).
+1. [Ferramentas disponíveis](#ferramentas-disponíveis)
+2. [A pasta raiz e a variável `GLOB_ROOT`](#a-pasta-raiz-e-a-variável-glob_root)
+3. [Requisitos](#requisitos)
+4. [Gerar as aplicações (build)](#gerar-as-aplicações-build)
+5. [Executar com o cliente MCP Java](#executar-com-o-cliente-mcp-java)
+6. [Usar no Claude Desktop](#usar-no-claude-desktop)
+7. [Usar no MCP Inspector (Docker)](#usar-no-mcp-inspector-docker)
+8. [Usar em outros assistentes de IA](#usar-em-outros-assistentes-de-ia)
+9. [Testes](#testes)
+10. [Arquitetura e boas práticas](#arquitetura-e-boas-práticas)
+11. [Segurança](#segurança)
+12. [Referências](#referências)
 
-Além disto, é possível executar o servidor MCP Java em assistentes de IA locais, tais como Claude Desktop, Gemini CLI e Cursor CLI, entre outros.
+---
 
-Também é possível verificar e testar o servidor MCP Java com o MCP Inspector. A Anthropic criou esta ferramenta para testar e depurar servidores MCP locais e remotos. Ela possui interface web, CLI e TUI. Mais adiante, este documento mostra os passos necessários para testar o servidor MCP Java com o MCP Inspector rodando como um contêiner Docker no Docker Desktop, juntamente com os arquivos `Dockerfile` e `compose.yaml`, disponíveis na raiz do projeto.
+## Ferramentas disponíveis
 
-#### ⚙️ Eclipse IDE ⚙️
-1. Clicar com o botão direito do mouse no nome do projeto;
-2. Selecionar **Run As** > **Maven build...**
-3. Na janela **Edit configuration and launch**:
-    * Na aba **Main** digitar **clean package -Pserver -DskipTests** no campo **Goals**
-    * Na aba **JRE** digitar **--enable-native-access=ALL-UNNAMED** no campo **VM arguments**
-4. Clicar no botão **Run**
+O servidor registra três ferramentas. Todas devolvem texto. Quando algo dá errado, o servidor **não lança exceção ao cliente**: devolve um resultado com `isError = true` e uma mensagem começando com `Erro:`.
 
-Os passos anteriores devem ser executados somente na primeira vez. A partir da segunda vez clicar na "pontinha de flecha" ao lado do botão *play*, na barra de botões do Eclipse IDE.
+### `glob_search`
 
-Se o processo de construção da aplicação servidor ocorreu sem erros, ele produzirá o diretório (pasta) **server** na raiz do projeto. Este diretório contém a aplicação executável do servidor e o sub-diretório **libs** contendo as bibliotecas de código necessárias ao servidor.
+Procura arquivos dentro da pasta raiz usando um padrão *glob*.
 
-**A aplicação servidor é executada pela aplicação cliente e não precisa de intervenção do programador.**
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `pattern` | string | sim | Padrão *glob* aplicado ao caminho **relativo** à raiz (ex.: `*.pdf`) |
+| `maxResults` | integer | não (padrão `100`) | Quantidade máxima de resultados |
 
-Para gerar a aplicação cliente, deve-se executar os quatro passos mostrados anteriormente, com a seguinte diferença, na aba **Main** digitar **clean package -Pclient -DskipTests**, e este procedimento, assim como o anterior, deve ser realizado apenas na primeira vez.
+**Resultados possíveis**
 
-Se o processo de construção da aplicação cliente ocorreu sem erros, ele produzirá o diretório **dist-client** como sub-diretório de **target**. O diretório **dist_client** contém a aplicação cliente e o sub-diretório **libs** com as bibliotecas necessária à sua execução.
+| Situação | `isError` | Texto devolvido |
+|---|---|---|
+| Há arquivos que combinam | `false` | Um caminho relativo por linha, sempre com `/` (ex.: `manual-do-mcp.pdf`) |
+| Nenhum arquivo combina | `false` | `Nenhum arquivo encontrado para o padrão: <padrão>` |
+| Padrão ausente ou inválido, ou falha ao percorrer a pasta | `true` | `Erro: <mensagem>` |
 
-#### ⚙️ Linha de Comand (CLI) ⚙️
-Abrir uma janela do terminal, Prompt de Comando no Windows, por exemplo, mudar para o diretório raiz do projeto e gerar as aplicações:
+**Padrões úteis**
+
+| Padrão | O que encontra |
+|---|---|
+| `*.pdf` | PDFs diretamente na raiz |
+| `**/*.pdf` | PDFs dentro de subpastas |
+| `{*.pdf,**/*.pdf}` | PDFs em qualquer lugar (raiz e subpastas) |
+| `**/*.txt` | Arquivos de texto em subpastas |
+
+> ⚠️ **Atenção:** `**/*.pdf` **não** encontra um PDF que esteja diretamente na raiz. Para pegar a raiz e as subpastas, use `{*.pdf,**/*.pdf}`.
+
+Somente **arquivos** são listados (pastas não). A ordem dos resultados não é garantida.
+
+### `pdf_page_count`
+
+Conta as páginas de um arquivo PDF da pasta raiz (usa o [Apache PDFBox](https://pdfbox.apache.org/)).
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `path` | string | sim | Caminho do PDF **relativo** à raiz (ex.: `manual-do-mcp.pdf`) |
+
+**Resultados possíveis**
+
+| Situação | `isError` | Texto devolvido |
+|---|---|---|
+| PDF lido com sucesso | `false` | `manual-do-mcp.pdf: 3 página(s)` |
+| Arquivo inexistente ou que não pode ser lido como PDF | `true` | `Erro: Não foi possível ler o PDF: <path>` |
+| Caminho fora da pasta raiz (ex.: `../fora.pdf`) | `true` | `Erro: Caminho fora da raiz: <path>` |
+| Parâmetro `path` ausente | `true` | `Erro: ...` |
+
+### `obter_documento`
+
+Ferramenta de **exemplo** que veio com o projeto base do professor, mantida para demonstrar notificações de *logging* ao cliente. Não lê arquivos.
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | integer | sim | ID do documento |
+
+**Resultado:** texto fixo no formato `id[123], titulo['Relatório de Documentos'], status['finalizado'], data[<data/hora atual>]`.
+
+---
+
+## A pasta raiz e a variável `GLOB_ROOT`
+
+Todas as buscas acontecem **dentro** de uma pasta raiz. O servidor a define assim:
+
+1. se existir a variável de ambiente `GLOB_ROOT`, usa o caminho dela;
+2. caso contrário, usa a pasta relativa `repositorio` (relativa a **onde o servidor é executado**).
+
+O projeto traz a pasta `repositorio/` com três PDFs de exemplo:
+
+| Arquivo | Páginas |
+|---|---|
+| `guia-rapido-java.pdf` | 1 |
+| `manual-do-mcp.pdf` | 3 |
+| `relatorio-de-estudos.pdf` | 5 |
+
+Em assistentes de IA (Claude Desktop e similares) o servidor não roda a partir da pasta do projeto. Por isso, **configure `GLOB_ROOT` com um caminho absoluto**.
+
+---
+
+## Requisitos
+
+- **Java 25** (JDK) instalado e no `PATH`
+- **Maven** (ou o Maven embutido do Eclipse IDE)
+- (Opcional) **Docker Desktop**, para o MCP Inspector
+
+Principais dependências (ver `pom.xml`): MCP Java SDK 2.0.1, Apache PDFBox 3.0.5, SLF4J + Logback, JUnit 5.
+
+---
+
+## Gerar as aplicações (build)
+
+O projeto é gerado por **perfis Maven**:
+
+| Perfil | Gera |
+|---|---|
+| `server` | `server/mcp_server01_server.jar` e `server/libs/` (as bibliotecas ficam ao lado do JAR) |
+| `client` | `target/dist-client/mcp_server01_client.jar` e `target/dist-client/libs/` |
+
+### Linha de comando
 
 ```
-# gerar a aplicação servidor
+# servidor
 mvn clean package -Pserver -DskipTests
-```
-```
-# gerar a aplicação cliente
+
+# cliente
 mvn clean package -Pclient -DskipTests
-
-# executar o cliente MCP Java, que executará o servidor MCP Java
-java -jar mcp_server_01_client.jar
 ```
 
-Independentemente do modo de execução do processo de construção (*build*), se realizado no Eclipse IDE ou em CLI, uma vez que ambas as aplicações tenham sido criadas, o programador deve abrir uma janela do terminal e mudar para o diretório **dist-client**. Estando neste diretório digitar **java -jar mcp_server_01_client.jar**, conforme informado acima, pressionar a tecla ENTER <img width="20" height="20" src="https://img.icons8.com/color/48/enter-key.png" alt="enter-key"/> e aguardar a execução do cliente que, por sua vez, executará o servidor e apresentará ao usuário um menu para interagir com a(s) ferramenta(s) disponibilizadas pelo servidor.
+### Eclipse IDE
+
+1. Botão direito no projeto > **Run As** > **Maven build...**
+2. Aba **Main**, campo **Goals**: `clean package -Pserver -DskipTests` (ou `-Pclient`)
+3. Aba **JRE**, campo **VM arguments**: `--enable-native-access=ALL-UNNAMED`
+4. Clicar em **Run**
+
+> 🗣️ **Importante:** o `clean` de um perfil apaga a saída do outro. Gerar o **servidor** apaga o **cliente** (em `target/`), então o cliente precisa ser gerado de novo. Feche o Claude Desktop antes de gerar o servidor: ele mantém o JAR aberto e o `clean` não consegue apagá-lo.
 
 ---
 
-#### ⚙️ MCP Inspector no Docker Desktop ⚙️
-Certificar-se de que o Docker Desktop esteja em execução antes de proceder com os passos à seguir.
+## Executar com o cliente MCP Java
 
-1. Abrir uma janela do terminal, Prompt de Comando no Windows, por exemplo
-2. Mudar para o diretório raiz do projeto
-3. Executar o comando `docker compose up -d`
-4. Aguardar até que a imagem tenha sido criada e executada no Docker Desktop
-5. Na barra de endereços do navegador, digitar `http://127.0.0.1:6274` e pressionar ENTER <img width="20" height="20" src="https://img.icons8.com/color/48/enter-key.png" alt="enter-key"/>
+O cliente inicia o servidor automaticamente (`java -jar`) e mostra um menu interativo.
 
-O passo **3** é uma composição, ou seja, o comando `compose` processa o arquivo `compose.yaml`, que, por sua vez, processa o arquivo `Dockerfile` para criar, se necessário, a imagem Docker. Após a criação da imagem Docker, o `compose` continua sua execução e implanta um conjunto de serviços, neste caso, apenas um, no Docker Desktop. Ambos os arquivos encontram-se no diretório raiz do projeto.
+1. Gerar o **servidor** e, em seguida, o **cliente** (nessa ordem, veja a observação acima).
+2. Executar:
 
-Se os passos anteriores ocorreram com sucesso, o MCP Inspector exibirá o servidor MCP Java e a(s) ferramenta(s) disponibilizada(s) por ele poderá(ão) ser executada(s) (testada(s)).
+```
+cd target/dist-client
+java -jar mcp_server01_client.jar
+```
+
+Para usar outra pasta raiz, defina `GLOB_ROOT` antes de executar:
+
+```
+# Windows (Prompt de Comando)
+set GLOB_ROOT=C:\caminho\da\pasta
+java -jar mcp_server01_client.jar
+```
+
+O cliente localiza o JAR do servidor nesta ordem: propriedade `-Dmcp.server.jar=<caminho>`; `server/mcp_server01_server.jar`; `../../server/mcp_server01_server.jar` (caso da execução a partir de `target/dist-client`).
+
+**Menu do cliente:** digite o número ou o nome da ferramenta, informe os parâmetros pedidos (os opcionais podem ficar em branco) e veja o resultado. Comandos: `listar` (atualiza a lista de ferramentas) e `sair`.
 
 ---
 
-### 📌 Instalar o servidor MCP Java Local no [Claude Desktop](https://claude.com/) 📌 ###
-- Localizar o diretório `C:\Users\<USUÁRIO_LOGADO>\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude`
-- Editar o arquivo `claude_desktop_config.json`
-- Se não existir, criar a entrada `mcpServers` com o conteúdo
+## Usar no Claude Desktop
 
-```
+1. Gerar o servidor (`mvn clean package -Pserver -DskipTests`).
+2. No Claude Desktop, abrir **Settings > Developer > Edit Config** (o arquivo `claude_desktop_config.json` fica em `%APPDATA%\Claude\` ou na pasta de dados do aplicativo).
+3. Adicionar a entrada `mcpServers`, **sem apagar** o restante do arquivo, com os caminhos **absolutos** da sua máquina:
+
+```json
+{
   "mcpServers": {
-    "NOME_DO_SERVIDOR": {
+    "globbing": {
       "command": "java",
-      "args": ["-jar", "/caminho/absoluto/para/servidor.jar"],
-      "env": {}
+      "args": [
+        "--enable-native-access=ALL-UNNAMED",
+        "-jar",
+        "C:\\caminho\\do\\projeto\\server\\mcp_server01_server.jar"
+      ],
+      "env": {
+        "GLOB_ROOT": "C:\\caminho\\do\\projeto\\repositorio"
+      }
     }
   }
+}
 ```
-- Salvar o arquivo e iniciar ou reiniciar o Claude Desktop (se o Claude Desktop estiver em execução deve ser completamente encerrado e não apenas sua janela fechada).
 
+4. Salvar e **encerrar completamente** o Claude Desktop (pelo ícone da bandeja, **Quit**; fechar só a janela não basta) e abri-lo novamente.
+5. Em **Settings > Developer**, o servidor `globbing` deve aparecer como *running*. No chat, as ferramentas `glob_search`, `pdf_page_count` e `obter_documento` ficam disponíveis.
 
-O diretório `Users` também pode ser escrito como `Usuários`.
- 
-O diretório `Claude_pzs8sxrjxfjjc` pode possuir um nome diferente do apresentado, mas o prefixo `Claude_` será o mesmo.
+**Pedidos para testar**
 
-O Java, JDK ou JRE, **deve** estar instalado e configurado.
+- *"Liste todos os PDFs do repositório."*
+- *"Quantas páginas tem o relatorio-de-estudos.pdf?"* (resposta: 5)
+- *"Quantas páginas tem o arquivo ../fora.pdf?"* (erro: caminho fora da raiz)
 
----
-
-🗣️ **OBSERVAÇÃO IMPORTANTE** 🗣️
-> Sempre que o artefato SERVIDOR é gerado, o artefato CLIENTE é apagado do diretório "target", devido ao objetivo (*goal*) `clean`, e deve ser gerado novamente (mesmo que não tenha havido mudança de código nele).
+Se o servidor aparecer com falha, confira se o `java` está no `PATH` (em caso negativo, use o caminho completo do `java.exe` em `command`) e leia o log em `%APPDATA%\Claude\logs\mcp-server-globbing.log`. Em barras de caminho no JSON, use `\\`.
 
 ---
 
-### 📌 Executar Testes de Integração (IT - *Integration Test*) (OPCIONAL) 📌
-O diretório `src/test/java` é o local onde se localizam as classes para testes, tanto de integração, classes com o sufixo **IT**, quanto unitários, classes com o sufixo **Test**.
+## Usar no MCP Inspector (Docker)
 
-Seguir os passos acima para criar um *build*, se for a primeira execução. No campo `Goals` digitar `clean verify -Pserver`.
+O [MCP Inspector](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector) é a ferramenta da Anthropic para testar e depurar servidores MCP. Aqui ele roda em um contêiner Docker, definido pelos arquivos `Dockerfile` e `compose.yaml` da raiz do projeto.
 
-Para executar os testes de integração em linha de comando, digitar `mvn clean verify -Pserver`.
+O `compose.yaml` monta duas pastas no contêiner, ambas somente leitura:
+
+```yaml
+volumes:
+  - ./server:/opt/mcp/server:ro
+  - ./repositorio:/home/node/repositorio:ro
+```
+
+O contêiner executa o servidor a partir de `/home/node`, por isso a pasta `repositorio` montada ali é encontrada pelo padrão do servidor, sem precisar da variável `GLOB_ROOT`.
+
+**Passos**
+
+1. Gerar o servidor (`mvn clean package -Pserver -DskipTests`).
+2. Garantir que o **Docker Desktop** esteja em execução.
+3. Na raiz do projeto: `docker compose up -d --build`
+4. Abrir `http://127.0.0.1:6274` no navegador.
+5. Conectar ao servidor, abrir a aba **Tools** e executar `glob_search` e `pdf_page_count`.
+
+Para encerrar: `docker compose down`.
 
 ---
 
-#### 📘 REFERÊNCIAS 📘 ####
-[What is the Model Context Protocol (MCP)? - Documentação Oficial](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro)
+## Usar em outros assistentes de IA
 
-[MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk)
+Qualquer cliente MCP que execute servidores locais por STDIO (Gemini CLI, Cursor, entre outros) precisa das mesmas três informações usadas no Claude Desktop:
 
-[Building a JDBC-based MCP Server: A Developer Guide](https://www.cdata.com/kb/articles/jdbc-mcp-server-dev-guide.rst)
+| Informação | Valor |
+|---|---|
+| Comando | `java` |
+| Argumentos | `--enable-native-access=ALL-UNNAMED`, `-jar`, `<caminho absoluto>/server/mcp_server01_server.jar` |
+| Variável de ambiente | `GLOB_ROOT=<caminho absoluto da pasta raiz>` |
 
-[Learn MCP Java Tutorial - Microsoft](https://github.com/microsoft/lets-learn-mcp-java/tree/main)
+Esses clientes normalmente usam um arquivo de configuração com a mesma estrutura `mcpServers` mostrada na seção do Claude Desktop (consulte a documentação do assistente para saber o nome e a localização do arquivo).
 
-[Tutorial 1 no GitHub](https://github.com/eugenp/tutorials/tree/master/java-mcp)
+### Instruções para a IA que usar este servidor
 
-[Tutorial 2 no GitHub](https://github.com/CDataSoftware/cdata-jdbc-mcp-server)
+- Para descobrir quais arquivos existem, use `glob_search` **antes** de qualquer outra ferramenta.
+- Para encontrar PDFs em qualquer lugar da raiz, use o padrão `{*.pdf,**/*.pdf}`. O padrão `**/*.pdf` **não** inclui a raiz.
+- Os caminhos são sempre **relativos** à raiz. Não use caminhos absolutos nem `..`: serão recusados.
+- Para contar as páginas de todos os PDFs: chame `glob_search` e depois `pdf_page_count` para cada caminho devolvido.
+- Se uma ferramenta devolver `isError = true`, leia a mensagem (começa com `Erro:`), corrija o parâmetro e tente de novo.
+
+---
+
+## Testes
+
+Os testes ficam em `src/test/java`: classes com sufixo `Test` são **unitárias**; com sufixo `IT` são de **integração**.
+
+| Classe | Tipo | O que verifica |
+|---|---|---|
+| `SafePathTest` | unitário | resolução de caminhos dentro da raiz e recusa de `../`, caminhos absolutos e fugas da raiz |
+| `GlobServiceTest` | unitário | busca por padrão *glob* em uma pasta temporária |
+| `PdfServiceTest` | unitário | contagem de páginas de PDFs gerados em uma pasta temporária |
+| `McpServer01IT` | integração | sobe o JAR do servidor, conecta um cliente MCP e executa as ferramentas: listagem, sucesso e erros de `glob_search` e `pdf_page_count`, além da `obter_documento` |
+
+Os testes de integração usam o JAR de `server/mcp_server01_server.jar` e a pasta `repositorio/` do projeto.
+
+**Executar tudo** (testes unitários e de integração, gerando o servidor):
+
+```
+mvn clean verify -Pserver
+```
+
+No Eclipse: **Run As > Maven build...**, Goals `clean verify -Pserver`. Também é possível executar as classes de teste individualmente com **Run As > JUnit Test** (para os `*IT`, gere o JAR do servidor antes).
+
+---
+
+## Arquitetura e boas práticas
+
+```
+br.edu.ifpr.mcp_server
+├── main
+│   ├── McpServer01SyncStdio     # servidor: configura o MCP e registra as ferramentas
+│   └── McpClient01SyncStdio     # cliente interativo de console
+└── mcp
+    ├── utils
+    │   └── McpToolDefinition    # interface de toda ferramenta (register + run)
+    ├── tools
+    │   ├── GlobSearchTool       # adaptador MCP → GlobService
+    │   ├── PdfPageCountTool     # adaptador MCP → PdfService
+    │   └── SimpleReportTool     # exemplo do professor (obter_documento)
+    └── files
+        ├── SafePath             # raiz segura (objeto de valor imutável)
+        ├── PathOutsideRootException
+        ├── GlobService          # regra de negócio: busca por glob
+        └── PdfService           # regra de negócio: contagem de páginas
+```
+
+- **Separação de responsabilidades:** as *tools* só traduzem o protocolo MCP (ler argumentos, montar o resultado); a lógica fica nos *services*, que não conhecem o MCP e podem ser testados sozinhos.
+- **Adapter:** `GlobSearchTool` e `PdfPageCountTool` adaptam o protocolo MCP aos serviços.
+- **Strategy / polimorfismo (aberto para extensão):** toda ferramenta implementa `McpToolDefinition`. Para criar uma nova, basta implementar a interface e incluí-la na lista de `registerTools`, sem alterar o restante do servidor.
+- **Injeção de dependência pelo construtor:** os serviços recebem o `SafePath` e as ferramentas recebem os serviços, sem *singletons* nem estado global.
+- **Objeto de valor imutável:** `SafePath` guarda a raiz em um campo `final` e tem uma única responsabilidade: resolver caminhos com segurança.
+- **Tratamento de erros:** falhas viram resultados `isError = true` com mensagem clara, em vez de derrubar o servidor.
+- **Logs:** vão para `stderr`, porque a saída padrão é reservada às mensagens do protocolo MCP.
+
+---
+
+## Segurança
+
+Como a IA informa caminhos e padrões, o servidor impede o acesso a arquivos fora da pasta raiz. O `SafePath` normaliza cada caminho recebido (resolvendo `..`) e confere se o resultado continua **dentro** da raiz. Caso contrário, lança `PathOutsideRootException`, que a ferramenta converte em erro:
+
+| Entrada | Resultado |
+|---|---|
+| `manual-do-mcp.pdf` | aceito |
+| `../fora.pdf` | recusado |
+| `src/../../fora.pdf` | recusado |
+| caminho absoluto (ex.: `C:\Windows\algo.pdf`) | recusado |
+
+As buscas por *glob* percorrem apenas a pasta raiz.
+
+---
+
+## Referências
+
+- [What is the Model Context Protocol (MCP)? (documentação oficial)](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro)
+- [MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk)
+- [MCP Inspector](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector)
+- [Apache PDFBox](https://pdfbox.apache.org/)
+- [Documentação de `FileSystem.getPathMatcher` (sintaxe glob)](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/nio/file/FileSystem.html#getPathMatcher(java.lang.String))
