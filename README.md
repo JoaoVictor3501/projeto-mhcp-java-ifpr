@@ -9,14 +9,14 @@ O servidor trabalha sobre uma **pasta raiz** (por padrão, `repositorio/`) e ofe
 
 > Exemplo de uso com a IA: *"Quantas páginas tem cada PDF do repositório?"*. A IA chama `glob_search` para descobrir os PDFs e depois `pdf_page_count` para cada um.
 
-
+Autor: João ([@JoaoVictor3501](https://github.com/JoaoVictor3501))
 
 ---
 
 ## Sumário
 
 1. [Ferramentas disponíveis](#ferramentas-disponíveis)
-2. [A pasta raiz e a variável `GLOB_ROOT`](#a-pasta-raiz-e-a-variável-glob_root)
+2. [A pasta raiz do servidor](#a-pasta-raiz-do-servidor)
 3. [Requisitos](#requisitos)
 4. [Gerar as aplicações (build)](#gerar-as-aplicações-build)
 5. [Executar com o cliente MCP Java](#executar-com-o-cliente-mcp-java)
@@ -93,7 +93,7 @@ Ferramenta de **exemplo** que veio com o projeto base do professor, mantida para
 
 ---
 
-## A pasta raiz e a variável `GLOB_ROOT`
+## A pasta raiz do servidor
 
 Todas as buscas acontecem **dentro** de uma pasta raiz. O servidor a define assim:
 
