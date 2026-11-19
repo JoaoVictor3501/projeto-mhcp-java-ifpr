@@ -14,6 +14,7 @@ services:
      # ro: read-only
      volumes:
        - ./server:/opt/mcp/server:ro
+       - ./repositorio:/home/node/repositorio/:ro
      # executa o servidor MCP em Java
      command:
        - java

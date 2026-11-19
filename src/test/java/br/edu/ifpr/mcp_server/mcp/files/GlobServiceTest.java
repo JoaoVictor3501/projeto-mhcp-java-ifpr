@@ -1,8 +1,10 @@
 package br.edu.ifpr.mcp_server.mcp.files;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -24,5 +26,32 @@ public class GlobServiceTest {
 		List<Path> resultado = service.search("**/*.pdf", 100);
 		
 		assertEquals(List.of(Path.of("desenho/vinlandsaga.pdf")), resultado);
+	}
+	
+	@Test
+	void pdfNaRaizSoApareceComPadraoSemPasta(@TempDir Path raiz) throws IOException {
+	   Files.createFile(raiz.resolve("a.pdf"));
+	   GlobService service = new GlobService(new SafePath(raiz));
+
+	   // o padrão sem pasta ACHA o PDF solto na raiz
+	   assertEquals(List.of(Path.of("a.pdf")), service.search("*.pdf", 10));
+	   // o padrão com "**/" NÃO acha
+	   assertEquals(List.of(), service.search("**/*.pdf", 10));
+	}
+	
+	@Test
+	void arquivoInexistenteLancaErro(@TempDir Path raiz) {
+	   PdfService service = new PdfService(new SafePath(raiz));
+
+	   assertThrows(UncheckedIOException.class,
+	                () -> service.countPages("nao-existe.pdf"));
+	}
+
+	@Test
+	void caminhoForaDaRaizLancaErro(@TempDir Path raiz) {
+	   PdfService service = new PdfService(new SafePath(raiz));
+
+	   assertThrows(PathOutsideRootException.class,
+	                () -> service.countPages("../fora.pdf"));
 	}
 }
