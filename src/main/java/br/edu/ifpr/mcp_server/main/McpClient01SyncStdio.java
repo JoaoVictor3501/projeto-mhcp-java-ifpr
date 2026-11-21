@@ -26,6 +26,8 @@ public class McpClient01SyncStdio {
    private static final Logger LOG =
                             LoggerFactory.getLogger(McpClient01SyncStdio.class);
    // nome e caminho para o servidor MCP
+   // caminho do JAR do servidor, descoberto uma única vez, quando a classe é
+   // carregada (por isso é 'static final')
    private static final String SERVER_PATH =
                                         findServerPath();
    // objeto cliente para comunicação com o servidor
@@ -41,13 +43,27 @@ public class McpClient01SyncStdio {
                notification.data());
    }
 
+   /**
+    * Descobre onde está o JAR do servidor, tentando três opções, na ordem:
+    * 1) a propriedade -Dmcp.server.jar=CAMINHO, se informada na execução;
+    * 2) "server/mcp_server01_server.jar", a partir da pasta atual (cliente
+    *    executado a partir da raiz do projeto, por exemplo, no Eclipse);
+    * 3) "../../server/mcp_server01_server.jar" (cliente executado a partir de
+    *    target/dist-client, dois níveis abaixo da raiz do projeto).
+    * 
+    * @return caminho do JAR (a existência do arquivo é conferida depois, em
+    *         createClient)
+    */
    private static String findServerPath() {
+	   // opção 1: caminho informado explicitamente na linha de comando
 	   String configurado = System.getProperty("mcp.server.jar");
 	   if(configurado != null)
 		   return configurado;
+	   // opção 2: JAR na pasta "server" da pasta atual
 	   File daRaiz = new File("server/mcp_server01_server.jar");
 	   if(daRaiz.isFile())
 		   return daRaiz.getPath();
+	   // opção 3 (padrão): cliente executado de dentro de target/dist-client
 	   return "../../server/mcp_server01_server.jar";}
 
    private McpSyncClient createClient() {

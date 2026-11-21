@@ -30,18 +30,32 @@ public class McpServer01SyncStdio {
 
    private McpSyncServer server;
 
+   /**
+    * Cria as ferramentas do servidor e as registra no MCP.
+    * 
+    * Cada ferramenta recebe, pelo construtor, o serviço de que precisa
+    * (injeção de dependência). Para acrescentar uma nova ferramenta basta
+    * implementar McpToolDefinition e incluí-la na lista abaixo.
+    */
    private void registerTools(
                           SyncSpecification<SingleSessionSyncSpecification> mcp)
                 throws Exception {
-      // cria a lista de ferramentas disponíveis no servidor...
-  
+      // pasta raiz das buscas: vem da variável de ambiente GLOB_ROOT, se
+      // existir; caso contrário, usa a pasta relativa "repositorio" (relativa
+      // a onde o servidor é executado). Em assistentes de IA, como o Claude
+      // Desktop, defina GLOB_ROOT com um caminho ABSOLUTO
       Path root = Path.of(System.getenv().getOrDefault("GLOB_ROOT", "repositorio"));
+      // um único SafePath (imutável) compartilhado pelos dois serviços, para
+      // que ambos respeitem exatamente a mesma raiz
+      SafePath safePath = new SafePath(root);
       GlobService globService = new GlobService(new SafePath(root));
       PdfService  pdfService = new PdfService(new SafePath(root));
-
+      
+      // cria a lista de ferramentas disponíveis no servidor
       List<McpToolDefinition> tools= List.of(new SimpleReportTool(),
                                               new GlobSearchTool(globService),
                                               new PdfPageCountTool(pdfService));
+      //para cada ferramenta, executa seu registro para posterior execução
       for (McpToolDefinition tool : tools)
           if (tool != null)
              tool.register(mcp);

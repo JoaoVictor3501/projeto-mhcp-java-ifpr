@@ -120,95 +120,127 @@ class McpServer01IT {
       assertFalse(result.content().isEmpty(),"O resultado deveria possuir " +
                                              "pelo menos um 'content'." );
    }
-   
+   // Os testes abaixo são de INTEGRAÇÃO: o servidor real é iniciado (java -jar)
+   // e o cliente conversa com ele por STDIO, como o Claude Desktop faria.
+   // Seguem sempre três passos: 1) LIGAR (montar o pedido), 2) RESPONDER
+   // (chamar o servidor) e 3) CONFERIR (verificar o resultado).
+
+   // Chama pdf_page_count com um PDF que existe em "repositorio" (3 páginas).
+   // Esperado: sem erro e texto contendo "3 página".
    @Test
    void deveContarPaginas() {
       // 1) LIGAR: nome da ferramenta e argumento 'path'
       CallToolRequest request = CallToolRequest.builder("pdf_page_count")
-                                               .arguments(Map.of("path","manual-do-mcp.pdf"))
-                                               .build();
+                  .arguments(Map.of("path","manual-do-mcp.pdf"))
+                  .build();
       // 2) RESPONDER
       CallToolResult  result  = client.callTool(request);
 
-      // 3) CONFERIR
+      // 3) CONFERIR: o texto da resposta é o primeiro 'content' do resultado
       assertFalse(result.isError(), "Não deveria ser erro.");
       String texto = ((TextContent) result.content().get(0)).text();
-      assertTrue(texto.contains("3 página"), "Esperava 3 páginas, mas veio: " + texto);
+      assertTrue(texto.contains("3 página"),
+                 "Esperava 3 páginas, mas veio: " + texto);
    }
-   
+
+   // Confere que o servidor ANUNCIA a ferramenta glob_search, com descrição e
+   // esquema de parâmetros (é o que o cliente lê para saber como usá-la).
    @Test
    void deveDisponibilizarGlobSearch() {
-	   ListToolsResult result = client.listTools();
-	   Tool            tool   = result.tools()
-	                                  .stream()
-	                                  .filter(item -> "glob_search".equals(item.name()))
-	                                  .findFirst()
-	                                  .orElse(null);
+      ListToolsResult result = client.listTools();
+      // procura, na lista de ferramentas, a que tem o nome esperado
+      Tool            tool   = result.tools()
+                                     .stream()
+                                     .filter(item ->
+                                          "glob_search".equals(item.name()))
+                                     .findFirst()
+                                     // se não achar, devolve null
+                                     .orElse(null);
 
-	   assertNotNull(tool, "A ferramenta glob_search não foi encontrada.");
-	   assertNotNull(tool.description(), "A ferramenta deveria possuir descrição.");
-	   assertNotNull(tool.inputSchema(), "A ferramenta deveria possuir 'inputSchema'.");
+      assertNotNull(tool, "A ferramenta glob_search não foi encontrada.");
+      assertNotNull(tool.description(),
+                    "A ferramenta deveria possuir descrição.");
+      assertNotNull(tool.inputSchema(),
+                    "A ferramenta deveria possuir 'inputSchema'.");
    }
-   
-   
+
+   // Executa glob_search com o padrão "*.pdf" (PDFs direto na raiz).
+   // Esperado: os três PDFs de exemplo aparecem no texto devolvido.
    @Test
    void deveAcharPdfsNaRaiz() {
-      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      // 1) LIGAR: nome da ferramenta e argumento 'pattern'
       CallToolRequest request = CallToolRequest.builder("glob_search")
-                                               .arguments(Map.of("pattern","*.pdf"))
-                                               .build();
+                  .arguments(Map.of("pattern","*.pdf"))
+                  .build();
       // 2) RESPONDER
       CallToolResult  result  = client.callTool(request);
 
       // 3) CONFERIR
       assertFalse(result.isError(), "Não deveria ser erro.");
       String texto = ((TextContent) result.content().get(0)).text();
-      assertTrue(texto.contains("manual-do-mcp.pdf"), "Esperava o manual, mas veio: " + texto);
-      assertTrue(texto.contains("guia-rapido-java.pdf"), "Esperava encontrar o arquivo guia-rapido-java.pdf, mas veio: " + texto);
-      assertTrue(texto.contains("relatorio-de-estudos.pdf"), "Esperava encontrar o arquivo relatorio-de-estudos.pdf, mas encontrei: " + texto);
+      assertTrue(texto.contains("manual-do-mcp.pdf"),
+                 "Esperava o manual, mas veio: " + texto);
+      assertTrue(texto.contains("guia-rapido-java.pdf"),
+                 "Esperava o guia, mas veio: " + texto);
+      assertTrue(texto.contains("relatorio-de-estudos.pdf"),
+                 "Esperava o relatório, mas veio: " + texto);
    }
-   
+
+   // Confere que o servidor ANUNCIA a ferramenta pdf_page_count, com descrição
+   // e esquema de parâmetros.
    @Test
    void deveDisponibilizarPdfPageCount() {
       ListToolsResult result = client.listTools();
       Tool            tool   = result.tools()
                                      .stream()
-                                     .filter(item -> "pdf_page_count".equals(item.name()))
+                                     .filter(item ->
+                                          "pdf_page_count".equals(item.name()))
                                      .findFirst()
                                      .orElse(null);
 
       assertNotNull(tool, "A ferramenta pdf_page_count não foi encontrada.");
-      assertNotNull(tool.description(), "A ferramenta deveria possuir descrição.");
-      assertNotNull(tool.inputSchema(), "A ferramenta deveria possuir 'inputSchema'.");
+      assertNotNull(tool.description(),
+                    "A ferramenta deveria possuir descrição.");
+      assertNotNull(tool.inputSchema(),
+                    "A ferramenta deveria possuir 'inputSchema'.");
    }
-   
+
+   // Caso de ERRO: pede um PDF que não existe. O servidor não deve falhar:
+   // deve devolver um resultado marcado como erro (isError = true) e com uma
+   // mensagem começando por "Erro".
    @Test
    void deveRetornarErroParaArquivoInexistente() {
-      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      // 1) LIGAR
       CallToolRequest request = CallToolRequest.builder("pdf_page_count")
-                                               .arguments(Map.of("path","nao-existe.pdf"))
-                                               .build();
+                  .arguments(Map.of("path","nao-existe.pdf"))
+                  .build();
       // 2) RESPONDER
       CallToolResult  result  = client.callTool(request);
 
-      // 3) CONFERIR
-      assertTrue(result.isError(), "Arquivo que não existe deveria retornar erro.");
+      // 3) CONFERIR: aqui o erro é o resultado ESPERADO (assertTrue)
+      assertTrue(result.isError(),
+                 "Arquivo que não existe deveria retornar erro.");
       String texto = ((TextContent) result.content().get(0)).text();
-      assertTrue(texto.contains("Erro"), "Esperava mensagem de erro, mas veio: " + texto);
+      assertTrue(texto.contains("Erro"),
+                 "Esperava mensagem de erro, mas veio: " + texto);
    }
-   
+
+   // Caso de ERRO de SEGURANÇA: tenta ler um arquivo fora da pasta raiz com
+   // "../". O servidor deve recusar e devolver um resultado de erro.
    @Test
    void deveRetornarErroForaDaRaiz() {
-      // 1) LIGAR: nome da ferramenta e argumento 'path'
+      // 1) LIGAR
       CallToolRequest request = CallToolRequest.builder("pdf_page_count")
-                                               .arguments(Map.of("path","../fora.pdf"))
-                                               .build();
+                  .arguments(Map.of("path","../fora.pdf"))
+                  .build();
       // 2) RESPONDER
       CallToolResult  result  = client.callTool(request);
 
       // 3) CONFERIR
-      assertTrue(result.isError(), "Caminho fora da raiz deveria retornar erro.");
+      assertTrue(result.isError(),
+                 "Caminho fora da raiz deveria retornar erro.");
       String texto = ((TextContent) result.content().get(0)).text();
-      assertTrue(texto.contains("Erro"), "Esperava mensagem de erro, mas veio: " + texto);
+      assertTrue(texto.contains("Erro"),
+                 "Esperava mensagem de erro, mas veio: " + texto);
    }
-}
+}   
